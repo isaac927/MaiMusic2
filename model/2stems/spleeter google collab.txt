@@ -1,0 +1,93 @@
+from google.colab import drive
+from pathlib import Path
+import os
+
+drive.mount('/content/drive')
+
+# Set input/output paths in your Google Drive
+INPUT_DIR = "/content/drive/MyDrive/spleeter_input"
+OUTPUT_DIR = "/content/drive/MyDrive/spleeter_output"
+MODEL_DIR = "pretrained_models"
+
+Path(INPUT_DIR).mkdir(exist_ok=True)
+Path(OUTPUT_DIR).mkdir(exist_ok=True)
+Path(MODEL_DIR).mkdir(exist_ok=True)
+
+# 2. Install Spleeter & Dependencies
+!pip install spleeter==2.4.2 2>/dev/null || echo "Spleeter already installed"
+!apt-get install -y ffmpeg libsndfile1 >/dev/null 2>&1
+
+# 3. Download 2-stem model (only if needed)
+if not Path(f"{MODEL_DIR}/2stems/model.data-00000-of-00001").exists():
+    print("Downloading 2-stem model...")
+    !wget -q -O 2stems.tar.gz https://github.com/deezer/spleeter/releases/download/v1.4.0/2stems.tar.gz
+    !tar xzf 2stems.tar.gz -C {MODEL_DIR}
+    !rm 2stems.tar.gz
+else:
+    print("2-stem model already exists")
+
+os.environ["MODEL_PATH"] = MODEL_DIR
+
+# 4. Separation function
+from IPython.display import Audio, display
+import subprocess
+import shutil
+
+def separate_audio(input_file):
+    """Separate audio into vocals and accompaniment, save to output folder"""
+    input_path = Path(input_file)
+    stem_name = input_path.stem
+
+    # Set correct final output folder
+    final_output_folder = Path(OUTPUT_DIR) / stem_name
+    final_output_folder.mkdir(exist_ok=True)
+
+    # Create a temporary folder for spleeter to write into
+    temp_output_folder = Path("temp_output")
+    temp_output_folder.mkdir(exist_ok=True)
+
+    # Convert to WAV if needed
+    if input_path.suffix.lower() != '.wav':
+        temp_wav_path = temp_output_folder / f"{stem_name}.wav"
+        !ffmpeg -i "{input_file}" -ac 2 -ar 44100 -y "{temp_wav_path}" >/dev/null 2>&1
+        input_file = temp_wav_path
+
+    # Run Spleeter output to temp
+    !spleeter separate -p spleeter:2stems -o "{temp_output_folder}" -c wav "{input_file}" >/dev/null 2>&1
+
+    # Move only vocals and accompaniment to final folder
+    source_folder = temp_output_folder / stem_name
+    for file in ["vocals.wav", "accompaniment.wav"]:
+        shutil.move(str(source_folder / file), str(final_output_folder / file))
+
+    # Clean up temp
+    shutil.rmtree(temp_output_folder)
+
+    # Return paths
+    vocals = final_output_folder / "vocals.wav"
+    accompaniment = final_output_folder / "accompaniment.wav"
+
+    if not vocals.exists() or not accompaniment.exists():
+        raise FileNotFoundError("❌ Separation failed.")
+
+    return vocals, accompaniment
+
+# 5. Main: Process all files in spleeter_input
+print("🎵 Starting batch separation from Google Drive...")
+
+input_files = list(Path(INPUT_DIR).glob("*.*"))
+if not input_files:
+    print("No files found in 'spleeter_input'. Please upload some first.")
+else:
+    for file in input_files:
+        print(f"\nProcessing: {file.name}")
+        try:
+            vocals, acc = separate_audio(file)
+            print("✅ Done! Output saved in:", vocals.parent)
+            print("🎤 Vocals preview:")
+            display(Audio(filename=str(vocals)))
+
+            print("🎵 Accompaniment preview:")
+            display(Audio(filename=str(acc)))
+        except Exception as e:
+            print(f"❌ Error processing {file.name}: {e}")
