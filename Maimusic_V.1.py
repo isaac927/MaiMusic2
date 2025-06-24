@@ -209,5 +209,3 @@ seperate_function_button = tk.Button(option_frame,bg="#8d8e9f",text="SEPERATE",h
 seperate_function_button.place(x=10, y=10)
 
 root.mainloop()
-
-#im cool
