@@ -17,9 +17,6 @@ is_playing = False
 is_paused = False
 play_thread = None
 chunk_size = 1024
-playhead = None
-waveform_img = None
-waveform_width = 0
 sound = AudioSegment.silent(duration=1000)
 
 # Audio Playback
@@ -32,121 +29,120 @@ def audio_loop():
                     output=True)
 
     while is_playing and stream_pos < len(audio_data):
-        if is_paused:
+        if is_paused or is_dragging:  # pause audio output during drag
             time.sleep(0.05)
             continue
         end = min(stream_pos + chunk_size, len(audio_data))
         chunk = audio_data[stream_pos:end]
         stream.write(chunk)
         stream_pos = end
+        update_progress_bar()
 
     stream.stop_stream()
     stream.close()
     p.terminate()
     is_playing = False
-
-def update_playhead():
-    if not is_playing:
-        return
-    elapsed = stream_pos / (sound.frame_rate * sound.frame_width)
-    x = int((elapsed / (len(sound) / 1000)) * waveform_width)
-    canvas.coords(playhead, x, 0, x, 200)
-    canvas.after(30, update_playhead)
-
-def restart_audio():
-    global is_playing, play_thread
-    if is_playing:
-        is_playing = False
-        time.sleep(0.1)
-    is_playing = True
-    play_thread = threading.Thread(target=audio_loop, daemon=True)
-    play_thread.start()
-    update_playhead()
-    play_btn.config(text='⏸️')
+    play_btn.config(text="▶️")
 
 def on_play():
-    try:
-        global is_playing, is_paused, audio_data, play_thread
-        if is_playing:
-            is_playing = False
-            is_paused = True
-            play_btn.config(text='▶️')
-        else:
-            audio_data = sound.raw_data
-            is_playing = True
-            is_paused = False
-            play_thread = threading.Thread(target=audio_loop, daemon=True)
-            play_thread.start()
-            update_playhead()
-            play_btn.config(text='⏸️')
-    except Exception as e:
-        messagebox.showerror("Error", "Please select an audio file first.")
+    global is_playing, is_paused, stream_pos, play_thread
+    if sound is None:
+        messagebox.showerror("Error", "No file loaded.")
+        return
+
+    if is_playing:
+        is_paused = True
+        is_playing = False
+        play_btn.config(text="▶️")
+    else:
+        is_paused = False
+        is_playing = True
+        play_thread = threading.Thread(target=audio_loop, daemon=True)
+        play_thread.start()
+        play_btn.config(text="⏸️")
 
 def on_rewind():
-    global stream_pos, is_playing
-    try:
+    global stream_pos
+    if sound:
         stream_pos = max(0, stream_pos - int(5 * sound.frame_rate * sound.frame_width))
-        restart_audio()
-        is_playing = True
-    except Exception as e:
-        messagebox.showerror("Error", "Please select an audio file first.")
+        update_progress_bar()
 
 def on_fast_forward():
-    try:
-        global stream_pos, is_playing
+    global stream_pos
+    if sound:
         stream_pos = min(stream_pos + int(5 * sound.frame_rate * sound.frame_width), len(audio_data))
-        restart_audio()
-        is_playing = True
-    except Exception as e:
-        messagebox.showerror("Error", "Please select an audio file first.") 
+        update_progress_bar()
 
+def load_file():
+    global sound, audio_data, stream_pos, audio_duration
+    file_path = filedialog.askopenfilename(filetypes=[("Audio Files", "*.mp3 *.wav")])
+    if file_path:
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext not in ['.mp3', '.wav']:
+            messagebox.showerror("Invalid file", "Please choose .mp3 or .wav")
+            return
 
-def draw_waveform(audio_segment, width=3000, height=200):
-    global waveform_img, playhead, waveform_width
+        sound = AudioSegment.from_file(file_path)
+        audio_data = sound.raw_data
+        stream_pos = 0
+        audio_duration = len(sound)  # in ms
+        file_label.config(text=os.path.basename(file_path))
+        play_btn.config(text="▶️")
+        update_progress_bar()
 
-    canvas.delete("all")
+def update_progress_bar():
+    if not sound:
+        return
+    current_ms = stream_pos / (sound.frame_rate * sound.frame_width) * 1000
+    progress = min(1.0, current_ms / audio_duration)
+    bar_width = progress_canvas.winfo_width()
+    progress_canvas.coords(progress_fill, 0, 0, int(progress * bar_width), 20)
+    time_str = f"{int(current_ms // 1000)} / {int(audio_duration // 1000)} sec"
+    time_label.config(text=time_str)
 
-    samples = np.array(audio_segment.get_array_of_samples())
-    samples = samples[::max(1, int(len(samples) / width))]
-    max_amplitude = np.max(np.abs(samples))
-    scale = height / 2 / max_amplitude
+def seek_to_position(x):
+    global stream_pos
+    if not sound:
+        return
+    bar_width = progress_canvas.winfo_width()
+    fraction = min(max(x / bar_width, 0), 1)
+    new_ms = fraction * audio_duration
+    stream_pos = int((new_ms / 1000) * sound.frame_rate * sound.frame_width)
+    update_progress_bar()
 
-    img = Image.new("RGB", (width, height), color="white")
-    draw = ImageDraw.Draw(img)
-    for x, sample in enumerate(samples):
-        y = int(sample * scale)
-        draw.line([(x, height // 2), (x, height // 2 - y)], fill="black")
+def on_click(event):
+    global is_dragging
+    is_dragging = True
+    seek_to_position(event.x)
 
-    waveform_img = ImageTk.PhotoImage(img)
-    canvas.create_image(0, 0, image=waveform_img, anchor='nw')
-    waveform_width = width
-    canvas.configure(scrollregion=(0, 0, waveform_width, height))
-    playhead = canvas.create_line(0, 0, 0, 200, fill="red", width=2)
+def on_drag(event):
+    seek_to_position(event.x)
 
-def open_window_directory():
-    global sound, selected_file_label, audio_data, stream_pos
+def on_release(event):
+    global is_dragging
+    seek_to_position(event.x)
+    is_dragging = False
 
-    file_path = filedialog.askopenfilename()
+def open_file_dialog():
+    global sound, audio_data, stream_pos, audio_duration
+    file_path = filedialog.askopenfilename(
+        title="Select Audio File",
+        filetypes=[("Audio Files", "*.mp3 *.wav")]
+    )
     if file_path:
         ext = os.path.splitext(file_path)[1].lower()
         if ext not in ['.mp3', '.wav']:
             messagebox.showerror("Invalid File", "Please select an MP3 or WAV file.")
             return
-
-        try:
-            selected_file_label.destroy()
-        except Exception:
-            pass
-
-        selected_file_label = tk.Label(sidebar, text=os.path.basename(file_path), bg="#a5a7b8", fg="white", wraplength=180)
-        selected_file_label.place(x=10, y=70, width=180, height=30)
-
         sound = AudioSegment.from_file(file_path)
         audio_data = sound.raw_data
         stream_pos = 0
+        audio_duration = len(sound)  # in milliseconds
+        file_label.config(text=os.path.basename(file_path))
+        play_btn.config(text="▶️")
+        update_progress_bar()
 
-        draw_waveform(sound)
-        play_btn.config(text='▶️')
+
 
 def spleeter_seperation(sound):
     pass
@@ -167,26 +163,33 @@ sidebar.place(x=10, y=10, width=200, height=480)
 
 # File Picker Button
 folder_button_font = tkFont.Font(family="Arial", size=40, weight="bold")
-folder_label = tk.Button(sidebar, text="📁", foreground="white", background="#484c80",command=open_window_directory, font=folder_button_font)
+folder_label = tk.Button(sidebar, text="📁", foreground="white", background="#484c80",command=open_file_dialog, font=folder_button_font)
 folder_label.place(x=10, y=10, width=50, height=50)
+
+# File Label
+file_label = tk.Label(root, text="No file loaded")
+file_label.pack(pady=5)
 
 # Content Frame
 content_frame = tk.Frame(root, bg="#484c80")
 content_frame.place(x=220, y=10, width=970, height=300)
 
-# Waveform Display
-waveform_frame = tk.Frame(content_frame, bg="#fbfbfb")
-waveform_frame.pack(fill="both", expand=True)
+# Audio Display
+progress_frame = tk.Frame(content_frame, bg="#484c80")
+progress_frame.pack(pady=20)
 
-scroll_x = Scrollbar(waveform_frame, orient="horizontal")
-scroll_x.pack(side="bottom", fill="x")
+progress_canvas = tk.Canvas(progress_frame, width=300, height=20, bg="white", highlightthickness=1, highlightbackground="black")
+progress_canvas.pack()
+progress_fill = progress_canvas.create_rectangle(0, 0, 0, 20, fill="green")
 
-canvas = Canvas(waveform_frame, bg="white", height=150, xscrollcommand=scroll_x.set)
-canvas.pack(side="top", fill="both", expand=True)
-scroll_x.config(command=canvas.xview)
+progress_canvas.bind("<Button-1>", on_click)
+progress_canvas.bind("<B1-Motion>", on_drag)
+progress_canvas.bind("<ButtonRelease-1>", on_release)
 
-# Placeholder Text Before File is Loaded
-placeholder_text = canvas.create_text(500, 75, text="Please select file", fill="black", font=("Arial", 20))
+time_label = tk.Label(root, text="0 / 0 sec")
+time_label.pack()
+
+
 
 # Controls
 controls_frame = tk.Frame(content_frame, bg="#484c80")
