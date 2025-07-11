@@ -104,11 +104,14 @@ def seek_to_position(x):
     global stream_pos
     if not sound:
         return
-    bar_width = progress_canvas.winfo_width()
-    fraction = min(max(x / bar_width, 0), 1)
-    new_ms = fraction * audio_duration
-    stream_pos = int((new_ms / 1000) * sound.frame_rate * sound.frame_width)
-    update_progress_bar()
+    try:
+        bar_width = progress_canvas.winfo_width()
+        fraction = min(max(x / bar_width, 0), 1)
+        new_ms = fraction * audio_duration
+        stream_pos = int((new_ms / 1000) * sound.frame_rate * sound.frame_width)
+        update_progress_bar()
+    except NameError:
+        pass
 
 def on_click(event):
     global is_dragging
@@ -116,7 +119,10 @@ def on_click(event):
     seek_to_position(event.x)
 
 def on_drag(event):
-    seek_to_position(event.x)
+    try:    
+        seek_to_position(event.x)
+    except NameError:
+        pass
 
 def on_release(event):
     global is_dragging
@@ -179,15 +185,15 @@ progress_frame = tk.Frame(content_frame, bg="#484c80")
 progress_frame.pack(pady=20)
 
 progress_canvas = tk.Canvas(progress_frame, width=300, height=20, bg="white", highlightthickness=1, highlightbackground="black")
-progress_canvas.pack()
+progress_canvas.grid(row=0)
 progress_fill = progress_canvas.create_rectangle(0, 0, 0, 20, fill="green")
 
 progress_canvas.bind("<Button-1>", on_click)
 progress_canvas.bind("<B1-Motion>", on_drag)
 progress_canvas.bind("<ButtonRelease-1>", on_release)
 
-time_label = tk.Label(root, text="0 / 0 sec")
-time_label.pack()
+time_label = tk.Label(progress_frame, text="0 / 0 sec")
+time_label.grid(row=1)
 
 
 
