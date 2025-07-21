@@ -115,6 +115,7 @@ class audio_app:
         self.is_paused = False  # Resume playback
 
     def open_file_dialog(self):
+        global file_name_label
         file_path = filedialog.askopenfilename(filetypes=[("Audio Files", "*.mp3 *.wav")])
         if file_path:
             ext = os.path.splitext(file_path)[1].lower()
@@ -127,12 +128,14 @@ class audio_app:
             self.audio_duration = len(self.sound)
             self.file_label.config(text=os.path.basename(file_path))
             self.play_btn.config(text="▶️")
+            file_name_label.config(text=os.path.basename(file_path))
             self.update_progress_bar()
 
     def spleeter_seperation(self, sound):
         pass  # Future implementation
 
     def build_gui(self):
+        global file_name_label
         self.root.title('Audio Interface')
         self.root.geometry('1200x500')
         self.root.configure(bg="#fbfbfb")
@@ -178,6 +181,9 @@ class audio_app:
 
         fast_forward_btn = tk.Button(controls_frame, text="Fast Forward 5s", command=self.on_fast_forward)
         fast_forward_btn.grid(row=0, column=2, padx=10, pady=5)
+
+        file_name_label = tk.Label(content_frame, text="no file selected")
+        file_name_label.pack()
 
         option_frame = tk.Frame(self.root, bg="#d1d4f4")
         option_frame.place(x=220, y=320, width=970, height=170)
