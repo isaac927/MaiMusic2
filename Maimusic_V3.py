@@ -49,6 +49,8 @@ class audio_app:
                     self.root.after(0, self.update_progress_bar)
                 else:
                     break
+        except Exception as e:
+            messagebox.showerror("Playback Error", "please select an audio file")
         finally:
             stream.stop_stream()
             stream.close()
@@ -56,32 +58,42 @@ class audio_app:
             self.is_playing = False
             if self.root.winfo_exists():
                 self.root.after(0, lambda: self.play_btn.config(text="▶️"))
+        
 
     def on_play(self):
-        if self.sound is None:
-            messagebox.showerror("Error", "No file loaded.")
-            return
+        try:
+            if self.sound is None:
+                messagebox.showerror("Error", "No file loaded.")
+                return
 
-        if self.is_playing:
-            self.is_paused = True
-            self.is_playing = False
-            self.play_btn.config(text="▶️")
-        else:
-            self.is_paused = False
-            self.is_playing = True
-            self.play_thread = threading.Thread(target=self.audio_loop, daemon=True)
-            self.play_thread.start()
-            self.play_btn.config(text="⏸️")
+            if self.is_playing:
+                self.is_paused = True
+                self.is_playing = False
+                self.play_btn.config(text="▶️")
+            else:
+                self.is_paused = False
+                self.is_playing = True
+                self.play_thread = threading.Thread(target=self.audio_loop, daemon=True)
+                self.play_thread.start()
+                self.play_btn.config(text="⏸️")
+        except Exception as e:
+            messagebox.showerror("Playback Error, Please select an audio file", str(e))
 
     def on_rewind(self):
-        if self.sound:
-            self.stream_pos = max(0, self.stream_pos - int(5 * self.sound.frame_rate * self.sound.frame_width))
-            self.update_progress_bar()
+        try:
+            if self.sound:
+                self.stream_pos = max(0, self.stream_pos - int(5 * self.sound.frame_rate * self.sound.frame_width))
+                self.update_progress_bar()
+        except Exception as e:
+            messagebox.showerror("Playback Error", "please select an audio file")
 
     def on_fast_forward(self):
-        if self.sound:
-            self.stream_pos = min(self.stream_pos + int(5 * self.sound.frame_rate * self.sound.frame_width), len(self.audio_data))
-            self.update_progress_bar()
+        try:
+            if self.sound:
+                self.stream_pos = min(self.stream_pos + int(5 * self.sound.frame_rate * self.sound.frame_width), len(self.audio_data))
+                self.update_progress_bar()
+        except Exception as e:
+            messagebox.showerror("Playback Error", "please select an audio file")
 
     def update_progress_bar(self):
         if not self.sound:
@@ -174,7 +186,6 @@ class audio_app:
         controls_frame.pack(pady=10)
 
         rewind_btn = tk.Button(controls_frame, text="Rewind 5s", command=self.on_rewind)
-        rewind_btn.grid(row=0, column=0, padx=10, pady=5)
 
         self.play_btn = tk.Button(controls_frame, text="▶️", command=self.on_play)
         self.play_btn.grid(row=0, column=1)
