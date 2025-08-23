@@ -149,9 +149,7 @@ class audio_app:
             self.play_btn.config(text="▶️")
             file_name_label.config(text=os.path.basename(file_path))
             self.update_progress_bar()
-
     
-
     def build_gui(self):
         global file_name_label, file_path
         self.root.title('Audio Interface')
@@ -170,10 +168,10 @@ class audio_app:
         self.file_label = tk.Label(self.root, text="No file loaded")
         self.file_label.pack(pady=5)
 
-        content_frame = tk.Frame(self.root, bg="#484c80")
-        content_frame.place(x=220, y=10, width=970, height=300)
+        self.content_frame = tk.Frame(self.root, bg="#484c80")
+        self.content_frame.place(x=220, y=10, width=970, height=300)
 
-        progress_frame = tk.Frame(content_frame, bg="#484c80")
+        progress_frame = tk.Frame(self.content_frame, bg="#484c80")
         progress_frame.pack(pady=20)
 
         self.progress_canvas = tk.Canvas(progress_frame, width=300, height=20, bg="white", highlightthickness=1, highlightbackground="black")
@@ -187,7 +185,7 @@ class audio_app:
         self.time_label = tk.Label(progress_frame, text="0 / 0 sec")
         self.time_label.grid(row=1)
 
-        controls_frame = tk.Frame(content_frame, bg="#484c80")
+        controls_frame = tk.Frame(self.content_frame, bg="#484c80")
         controls_frame.pack(pady=10)
 
         rewind_btn = tk.Button(controls_frame, text="Rewind 5s", command=self.on_rewind)
@@ -199,7 +197,7 @@ class audio_app:
         fast_forward_btn = tk.Button(controls_frame, text="Fast Forward 5s", command=self.on_fast_forward)
         fast_forward_btn.grid(row=0, column=2, padx=10, pady=5)
 
-        file_name_label = tk.Label(content_frame, text="no file selected")
+        file_name_label = tk.Label(self.content_frame, text="no file selected")
         file_name_label.pack()
 
         option_frame = tk.Frame(self.root, bg="#d1d4f4")
@@ -235,6 +233,75 @@ class audio_app:
                 new_window.destroy()
 
             new_window.protocol("WM_DELETE_WINDOW", on_child_close)
+            self.output_screen(file_path)
+    
+    def output_screen(self, input_path):
+        # Clear old content
+        for w in self.content_frame.winfo_children():
+            w.destroy()
+
+        # Find separated files
+        base = os.path.splitext(os.path.basename(input_path))[0]
+        sep_dir = os.path.join("output", "2stems", base)
+        self.vocals_file = os.path.join(sep_dir, "vocals.wav")
+        self.accomp_file = os.path.join(sep_dir, "accompaniment.wav")
+
+        # Header
+        tk.Label(self.content_frame, text="Separated Output",
+                font=("Arial", 14, "bold"), bg="#484c80", fg="white").pack(pady=5)
+
+        # Dropdown to pick which stem
+        import tkinter.ttk as ttk
+        self.stem_choice = tk.StringVar(value="vocals")
+        stem_box = ttk.Combobox(self.content_frame, textvariable=self.stem_choice,
+                                values=["vocals", "accompaniment"], state="readonly", width=18)
+        stem_box.pack(pady=5)
+        stem_box.bind("<<ComboboxSelected>>", lambda e: self.load_output_audio())
+
+        # Label for file name
+        self.output_label = tk.Label(self.content_frame, text="", bg="#484c80", fg="white")
+        self.output_label.pack()
+
+        # Progress bar + time
+        self.progress_canvas = tk.Canvas(self.content_frame, width=600, height=20,
+                                        bg="white", highlightthickness=1, highlightbackground="black")
+        self.progress_canvas.pack(pady=5)
+        self.progress_fill = self.progress_canvas.create_rectangle(0, 0, 0, 20, fill="green")
+        self.time_label = tk.Label(self.content_frame, text="0 / 0 sec", bg="#484c80", fg="white")
+        self.time_label.pack()
+
+        # Playback controls
+        controls = tk.Frame(self.content_frame, bg="#484c80")
+        controls.pack(pady=10)
+        tk.Button(controls, text="⏪ 5s", command=self.on_rewind).pack(side="left", padx=5)
+        self.play_btn = tk.Button(controls, text="▶️", command=self.on_play)
+        self.play_btn.pack(side="left", padx=5)
+        tk.Button(controls, text="⏩ 5s", command=self.on_fast_forward).pack(side="left", padx=5)
+
+        # Back button
+        tk.Button(self.content_frame, text="⬅ Back", command=self.build_gui).pack(pady=5)
+
+        # Load default (vocals)
+        self.load_output_audio()
+
+
+    def load_output_audio(self):
+        """Load the chosen output stem (vocals/accompaniment)."""
+        from pydub import AudioSegment
+        choice = self.stem_choice.get()
+        path = self.vocals_file if choice == "vocals" else self.accomp_file
+
+        self.sound = AudioSegment.from_wav(path)
+        self.audio_data = self.sound.raw_data
+        self.audio_duration = len(self.sound)  # ms
+        self.stream_pos = 0
+        self.is_playing = False
+        self.is_paused = False
+
+        self.output_label.config(text=os.path.basename(path))
+        self.play_btn.config(text="▶️")
+        self.progress_canvas.coords(self.progress_fill, 0, 0, 0, 20)
+        self.time_label.config(text=f"0 / {int(self.audio_duration // 1000)} sec")
 
 
 # --- Database Setup ---
