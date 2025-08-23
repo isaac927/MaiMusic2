@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox
 import os
 import threading
 import subprocess
@@ -7,10 +7,10 @@ import sys
 
 
 class spleeter_gui:
-    def __init__(self, root, audio_file, model_dir=None):
+    def __init__(self, root, audio_file, model_dir="pretrained_model"):
         self.root = root
         self.audio_file = audio_file
-        self.model_dir = model_dir
+        self.model_dir = model_dir  # Local model path
         self.root.title("Spleeter Stem Separation")
         self.root.geometry("500x250")
         self.root.resizable(False, False)
@@ -22,20 +22,21 @@ class spleeter_gui:
         file_frame = tk.Frame(self.root)
         file_frame.pack(pady=10)
 
-
         tk.Label(file_frame, text="File to separate:").pack()
-        self.file_label = tk.Label(file_frame, text=os.path.basename(self.audio_file), fg="blue")
+        self.file_label = tk.Label(
+            file_frame,
+            text=os.path.basename(self.audio_file) if self.audio_file else "No file selected",
+            fg="blue"
+        )
         self.file_label.pack()
 
         # Start Button
         self.start_btn = tk.Button(self.root, text="Start Separation", command=self.confirm_and_run)
         self.start_btn.pack(pady=10)
 
-
         # Status
         self.status_label = tk.Label(self.root, text="Idle", fg="green")
         self.status_label.pack(pady=5)
-
 
     def confirm_and_run(self):
         if not self.audio_file:
@@ -47,13 +48,14 @@ class spleeter_gui:
 
     def run_spleeter(self):
         try:
-            stem = "2stems"  # ← Use a fixed stem value if you only support 2-stem separation
+            stem = "2stems"
             output_dir = os.path.join(os.getcwd(), "output", stem)
             os.makedirs(output_dir, exist_ok=True)
 
+            # Use local model
             env = os.environ.copy()
             if self.model_dir:
-                env["MODEL_PATH"] = self.model_dir  # ensures Spleeter uses your local model :contentReference[oaicite:4]{index=4}
+                env["MODEL_PATH"] = os.path.abspath(self.model_dir)
 
             cmd = [
                 sys.executable, "-m", "spleeter", "separate",
@@ -70,3 +72,10 @@ class spleeter_gui:
             messagebox.showerror("Error", "Spleeter failed to process the file.")
         finally:
             self.start_btn.config(state="normal")
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    # Example usage — replace with the path to your audio file
+    app = spleeter_gui(root, audio_file="output/sample3.mp3", model_dir="pretrained_model")
+    root.mainloop()

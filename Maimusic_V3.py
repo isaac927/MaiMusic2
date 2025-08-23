@@ -98,11 +98,14 @@ class audio_app:
     def update_progress_bar(self):
         if not self.sound:
             return
-        current_ms = self.stream_pos / (self.sound.frame_rate * self.sound.frame_width) * 1000
-        progress = min(1.0, current_ms / self.audio_duration)
-        bar_width = self.progress_canvas.winfo_width()
-        self.progress_canvas.coords(self.progress_fill, 0, 0, int(progress * bar_width), 20)
-        self.time_label.config(text=f"{int(current_ms // 1000)} / {int(self.audio_duration // 1000)} sec")
+        try:
+            current_ms = self.stream_pos / (self.sound.frame_rate * self.sound.frame_width) * 1000
+            progress = min(1.0, current_ms / self.audio_duration)
+            bar_width = self.progress_canvas.winfo_width()
+            self.progress_canvas.coords(self.progress_fill, 0, 0, int(progress * bar_width), 20)
+            self.time_label.config(text=f"{int(current_ms // 1000)} / {int(self.audio_duration // 1000)} sec")
+        except Exception as e:
+            pass
 
     def seek_to_position(self, x):
         if not self.sound:
@@ -123,9 +126,12 @@ class audio_app:
             self.seek_to_position(event.x)
 
     def on_release(self, event):
-        self.seek_to_position(event.x)
-        self.is_dragging = False
-        self.is_paused = False  # Resume playback
+        try:
+            self.seek_to_position(event.x)
+            self.is_dragging = False
+            self.is_paused = False  # Resume playback
+        except Exception as e:
+            pass
 
     def open_file_dialog(self):
         global file_name_label, file_path
@@ -170,8 +176,7 @@ class audio_app:
         progress_frame = tk.Frame(content_frame, bg="#484c80")
         progress_frame.pack(pady=20)
 
-        self.progress_canvas = tk.Canvas(progress_frame, width=300, height=20, bg="white",
-                                         highlightthickness=1, highlightbackground="black")
+        self.progress_canvas = tk.Canvas(progress_frame, width=300, height=20, bg="white", highlightthickness=1, highlightbackground="black")
         self.progress_canvas.grid(row=0)
         self.progress_fill = self.progress_canvas.create_rectangle(0, 0, 0, 20, fill="green")
 
@@ -186,6 +191,7 @@ class audio_app:
         controls_frame.pack(pady=10)
 
         rewind_btn = tk.Button(controls_frame, text="Rewind 5s", command=self.on_rewind)
+        rewind_btn.grid(row=0, column=0, padx=10, pady=5)
 
         self.play_btn = tk.Button(controls_frame, text="▶️", command=self.on_play)
         self.play_btn.grid(row=0, column=1)
@@ -280,15 +286,17 @@ def show_login(root, on_success):
         if not u or not p:
             messagebox.showwarning("Input Error", "Both fields are required.")
             return
-        conn = sqlite3.connect('users.db')
-        c = conn.cursor()
+        connection = sqlite3.connect('users.db')
+        c = connection.cursor()
         try:
             c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (u, p))
-            conn.commit()
+            connection.commit()
             messagebox.showinfo("Success", "Registered! Now log in.")
         except sqlite3.IntegrityError:
             messagebox.showerror("Error", "Username already exists.")
-        conn.close()
+        connection.close()
+
+
 
     ttk.Button(login_win, text="Login", command=do_login).pack(pady=5)
     ttk.Button(login_win, text="Register", command=do_register).pack()

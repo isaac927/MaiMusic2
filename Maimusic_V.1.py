@@ -210,5 +210,4 @@ option_frame.place(x=220, y=320, width=970, height=170)
 
 seperate_function_button = tk.Button(option_frame,bg="#8d8e9f",text="SEPERATE",height=9, width=60)
 seperate_function_button.place(x=10, y=10)
-
 root.mainloop()
