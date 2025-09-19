@@ -10,13 +10,18 @@ import sqlite3
 import numpy as np
 import spleeter_seperation
 
+
 class audio_app:
+    """audio application class with playback, progress bar, and separation features"""
+
     def __init__(self, root):
+        """initialize app"""
         self.root = root
         self.init_audio_vars()
         self.build_gui()
 
     def init_audio_vars(self):
+        """initialize audio-related variables"""
         self.audio_data = None
         self.stream_pos = 0
         self.is_playing = False
@@ -27,6 +32,7 @@ class audio_app:
         self.audio_duration = 0
 
     def audio_loop(self):
+        """audio playback loop"""
         p = pyaudio.PyAudio()
         stream = p.open(format=pyaudio.paInt16,
                         channels=self.sound.channels,
@@ -44,13 +50,12 @@ class audio_app:
                 stream.write(chunk)
                 self.stream_pos = end
 
-                # Schedule progress update safely in main thread
                 if self.root.winfo_exists():
                     self.root.after(0, self.update_progress_bar)
                 else:
                     break
-        except Exception as e:
-            messagebox.showerror("Playback Error", "please select an audio file")
+        except Exception:
+            messagebox.showerror("playback error", "please select an audio file")
         finally:
             stream.stop_stream()
             stream.close()
@@ -58,12 +63,12 @@ class audio_app:
             self.is_playing = False
             if self.root.winfo_exists():
                 self.root.after(0, lambda: self.play_btn.config(text="▶️"))
-        
 
     def on_play(self):
+        """toggle play and pause"""
         try:
             if self.sound is None:
-                messagebox.showerror("Error", "No file loaded.")
+                messagebox.showerror("error", "no file loaded.")
                 return
 
             if self.is_playing:
@@ -77,25 +82,28 @@ class audio_app:
                 self.play_thread.start()
                 self.play_btn.config(text="⏸️")
         except Exception as e:
-            messagebox.showerror("Playback Error, Please select an audio file", str(e))
+            messagebox.showerror("playback error", str(e))
 
     def on_rewind(self):
+        """rewind audio by 5 seconds"""
         try:
             if self.sound:
                 self.stream_pos = max(0, self.stream_pos - int(5 * self.sound.frame_rate * self.sound.frame_width))
                 self.update_progress_bar()
-        except Exception as e:
-            messagebox.showerror("Playback Error", "please select an audio file")
+        except Exception:
+            messagebox.showerror("playback error", "please select an audio file")
 
     def on_fast_forward(self):
+        """fast forward audio by 5 seconds"""
         try:
             if self.sound:
                 self.stream_pos = min(self.stream_pos + int(5 * self.sound.frame_rate * self.sound.frame_width), len(self.audio_data))
                 self.update_progress_bar()
-        except Exception as e:
-            messagebox.showerror("Playback Error", "please select an audio file")
+        except Exception:
+            messagebox.showerror("playback error", "please select an audio file")
 
     def update_progress_bar(self):
+        """update progress bar and time label"""
         if not self.sound:
             return
         try:
@@ -104,10 +112,11 @@ class audio_app:
             bar_width = self.progress_canvas.winfo_width()
             self.progress_canvas.coords(self.progress_fill, 0, 0, int(progress * bar_width), 20)
             self.time_label.config(text=f"{int(current_ms // 1000)} / {int(self.audio_duration // 1000)} sec")
-        except Exception as e:
+        except Exception:
             pass
 
     def seek_to_position(self, x):
+        """seek audio to position"""
         if not self.sound:
             return
         bar_width = self.progress_canvas.winfo_width()
@@ -117,29 +126,33 @@ class audio_app:
         self.update_progress_bar()
 
     def on_click(self, event):
+        """handle click on progress bar"""
         self.is_dragging = True
-        self.is_paused = True  # Pause playback while dragging
+        self.is_paused = True
         self.seek_to_position(event.x)
 
     def on_drag(self, event):
+        """handle dragging on progress bar"""
         if self.is_dragging:
             self.seek_to_position(event.x)
 
     def on_release(self, event):
+        """handle release after dragging on progress bar"""
         try:
             self.seek_to_position(event.x)
             self.is_dragging = False
-            self.is_paused = False  # Resume playback
-        except Exception as e:
+            self.is_paused = False
+        except Exception:
             pass
 
     def open_file_dialog(self):
+        """open file dialog to select audio"""
         global file_name_label, file_path
-        file_path = filedialog.askopenfilename(filetypes=[("Audio Files", "*.mp3 *.wav")])
+        file_path = filedialog.askopenfilename(filetypes=[("audio files", "*.mp3 *.wav")])
         if file_path:
             ext = os.path.splitext(file_path)[1].lower()
             if ext not in ['.mp3', '.wav']:
-                messagebox.showerror("Invalid file", "Please choose .mp3 or .wav")
+                messagebox.showerror("invalid file", "please choose .mp3 or .wav")
                 return
             self.sound = AudioSegment.from_file(file_path)
             self.audio_data = self.sound.raw_data
@@ -149,23 +162,24 @@ class audio_app:
             self.play_btn.config(text="▶️")
             file_name_label.config(text=os.path.basename(file_path))
             self.update_progress_bar()
-    
+
     def build_gui(self):
+        """build main user interface"""
         global file_name_label, file_path
-        self.root.title('Audio Interface')
+        self.root.title('audio interface')
         self.root.geometry('1200x500')
         self.root.configure(bg="#fbfbfb")
         self.root.resizable(False, False)
 
-        sidebar = tk.Frame(self.root, bg="#484c80")
+        sidebar = tk.Frame(self.root, bg="#252532")
         sidebar.place(x=10, y=10, width=200, height=480)
 
-        folder_button_font = tkFont.Font(family="Arial", size=40, weight="bold")
+        folder_button_font = tkFont.Font(family="arial", size=40, weight="bold")
         folder_label = tk.Button(sidebar, text="📁", foreground="white", background="#484c80",
                                  command=self.open_file_dialog, font=folder_button_font)
         folder_label.place(x=10, y=10, width=50, height=50)
 
-        self.file_label = tk.Label(self.root, text="No file loaded")
+        self.file_label = tk.Label(self.root, text="no file loaded")
         self.file_label.pack(pady=5)
 
         self.content_frame = tk.Frame(self.root, bg="#484c80")
@@ -188,13 +202,13 @@ class audio_app:
         controls_frame = tk.Frame(self.content_frame, bg="#484c80")
         controls_frame.pack(pady=10)
 
-        rewind_btn = tk.Button(controls_frame, text="Rewind 5s", command=self.on_rewind)
+        rewind_btn = tk.Button(controls_frame, text="rewind 5s", command=self.on_rewind)
         rewind_btn.grid(row=0, column=0, padx=10, pady=5)
 
         self.play_btn = tk.Button(controls_frame, text="▶️", command=self.on_play)
         self.play_btn.grid(row=0, column=1)
 
-        fast_forward_btn = tk.Button(controls_frame, text="Fast Forward 5s", command=self.on_fast_forward)
+        fast_forward_btn = tk.Button(controls_frame, text="fast forward 5s", command=self.on_fast_forward)
         fast_forward_btn.grid(row=0, column=2, padx=10, pady=5)
 
         file_name_label = tk.Label(self.content_frame, text="no file selected")
@@ -203,54 +217,44 @@ class audio_app:
         option_frame = tk.Frame(self.root, bg="#d1d4f4")
         option_frame.place(x=220, y=320, width=970, height=170)
 
-        seperate_function_button = tk.Button(option_frame, bg="#8d8e9f", text="SEPERATE", height=9, width=60,command=lambda: open_spleeter_window())
+        seperate_function_button = tk.Button(option_frame, bg="#8d8e9f", text="seperate", height=9, width=60,
+                                             command=lambda: open_spleeter_window())
         seperate_function_button.place(x=10, y=10)
 
         def open_spleeter_window():
+            """open spleeter separation window"""
             global file_path
-
-            # If no file picked, bail out
             if 'file_path' not in globals() or not file_path:
-                messagebox.showerror("Error", "No audio file loaded. Please load a file first.")
+                messagebox.showerror("error", "no audio file loaded. please load a file first.")
                 return
             if not os.path.exists(file_path):
-                messagebox.showerror("Error", "Selected audio file doesn't exist.")
+                messagebox.showerror("error", "selected audio file doesn't exist.")
                 return
 
-            # Mark as open + disable the button
             seperate_function_button.config(state="disabled")
 
-            # Create the child window
             new_window = tk.Toplevel(self.root)
-            
-            # Call to module from spleeter_seperation.py:
             spleeter_seperation.spleeter_gui(new_window, file_path)
 
-            # When the user closes it, re-enable button & clear the flag
-            def on_child_close():
-                self.window_open = False
+            def on_close():
                 seperate_function_button.config(state="normal")
                 new_window.destroy()
+                self.output_screen(file_path)
+            new_window.protocol("WM_DELETE_WINDOW", on_close)
 
-            new_window.protocol("WM_DELETE_WINDOW", on_child_close)
-            self.output_screen(file_path)
-    
     def output_screen(self, input_path):
-        # Clear old content
+        """show separated output screen"""
         for w in self.content_frame.winfo_children():
             w.destroy()
 
-        # Find separated files
         base = os.path.splitext(os.path.basename(input_path))[0]
         sep_dir = os.path.join("output", "2stems", base)
         self.vocals_file = os.path.join(sep_dir, "vocals.wav")
         self.accomp_file = os.path.join(sep_dir, "accompaniment.wav")
 
-        # Header
-        tk.Label(self.content_frame, text="Separated Output",
-                font=("Arial", 14, "bold"), bg="#484c80", fg="white").pack(pady=5)
+        tk.Label(self.content_frame, text="separated output",
+                 font=("arial", 14, "bold"), bg="#484c80", fg="white").pack(pady=5)
 
-        # Dropdown to pick which stem
         import tkinter.ttk as ttk
         self.stem_choice = tk.StringVar(value="vocals")
         stem_box = ttk.Combobox(self.content_frame, textvariable=self.stem_choice,
@@ -258,19 +262,16 @@ class audio_app:
         stem_box.pack(pady=5)
         stem_box.bind("<<ComboboxSelected>>", lambda e: self.load_output_audio())
 
-        # Label for file name
         self.output_label = tk.Label(self.content_frame, text="", bg="#484c80", fg="white")
         self.output_label.pack()
 
-        # Progress bar + time
         self.progress_canvas = tk.Canvas(self.content_frame, width=600, height=20,
-                                        bg="white", highlightthickness=1, highlightbackground="black")
+                                         bg="white", highlightthickness=1, highlightbackground="black")
         self.progress_canvas.pack(pady=5)
         self.progress_fill = self.progress_canvas.create_rectangle(0, 0, 0, 20, fill="green")
         self.time_label = tk.Label(self.content_frame, text="0 / 0 sec", bg="#484c80", fg="white")
         self.time_label.pack()
 
-        # Playback controls
         controls = tk.Frame(self.content_frame, bg="#484c80")
         controls.pack(pady=10)
         tk.Button(controls, text="⏪ 5s", command=self.on_rewind).pack(side="left", padx=5)
@@ -278,22 +279,19 @@ class audio_app:
         self.play_btn.pack(side="left", padx=5)
         tk.Button(controls, text="⏩ 5s", command=self.on_fast_forward).pack(side="left", padx=5)
 
-        # Back button
-        tk.Button(self.content_frame, text="⬅ Back", command=self.build_gui).pack(pady=5)
+        tk.Button(self.content_frame, text="⬅ back", command=self.build_gui).pack(pady=5)
 
-        # Load default (vocals)
         self.load_output_audio()
 
-
     def load_output_audio(self):
-        """Load the chosen output stem (vocals/accompaniment)."""
+        """load selected separated audio stem"""
         from pydub import AudioSegment
         choice = self.stem_choice.get()
         path = self.vocals_file if choice == "vocals" else self.accomp_file
 
         self.sound = AudioSegment.from_wav(path)
         self.audio_data = self.sound.raw_data
-        self.audio_duration = len(self.sound)  # ms
+        self.audio_duration = len(self.sound)
         self.stream_pos = 0
         self.is_playing = False
         self.is_paused = False
@@ -304,8 +302,8 @@ class audio_app:
         self.time_label.config(text=f"0 / {int(self.audio_duration // 1000)} sec")
 
 
-# --- Database Setup ---
 def init_database():
+    """initialize sqlite database for user accounts"""
     conn = sqlite3.connect('users.db')
     c = conn.cursor()
     c.execute('''
@@ -319,23 +317,24 @@ def init_database():
     conn.close()
 
 
-# --- Login/Register Window ---
 def show_login(root, on_success):
+    """show login/register window"""
     login_win = tk.Toplevel(root)
-    login_win.title("Login")
+    login_win.title("login")
     login_win.geometry("300x200")
     login_win.resizable(False, False)
     login_win.grab_set()
 
-    tk.Label(login_win, text="Username:").pack(pady=5)
+    tk.Label(login_win, text="username:").pack(pady=5)
     user_var = tk.StringVar()
     tk.Entry(login_win, textvariable=user_var).pack()
 
-    tk.Label(login_win, text="Password:").pack(pady=5)
+    tk.Label(login_win, text="password:").pack(pady=5)
     pwd_var = tk.StringVar()
     tk.Entry(login_win, textvariable=pwd_var, show="*").pack()
 
     def do_login():
+        """handle login"""
         u, p = user_var.get(), pwd_var.get()
         conn = sqlite3.connect('users.db')
         c = conn.cursor()
@@ -346,37 +345,36 @@ def show_login(root, on_success):
             on_success()
         else:
             conn.close()
-            messagebox.showerror("Login Failed", "Invalid credentials.")
+            messagebox.showerror("login failed", "invalid credentials.")
 
     def do_register():
+        """handle registration"""
         u, p = user_var.get(), pwd_var.get()
         if not u or not p:
-            messagebox.showwarning("Input Error", "Both fields are required.")
+            messagebox.showwarning("input error", "both fields are required.")
             return
         connection = sqlite3.connect('users.db')
         c = connection.cursor()
         try:
             c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (u, p))
             connection.commit()
-            messagebox.showinfo("Success", "Registered! Now log in.")
+            messagebox.showinfo("success", "registered! now log in.")
         except sqlite3.IntegrityError:
-            messagebox.showerror("Error", "Username already exists.")
+            messagebox.showerror("error", "username already exists.")
         connection.close()
 
+    ttk.Button(login_win, text="login", command=do_login).pack(pady=5)
+    ttk.Button(login_win, text="register", command=do_register).pack()
 
 
-    ttk.Button(login_win, text="Login", command=do_login).pack(pady=5)
-    ttk.Button(login_win, text="Register", command=do_register).pack()
-
-
-# --- Run App ---
 def main():
+    """start the application"""
     init_database()
     root = tk.Tk()
-    root.withdraw()  # Hide initially
+    root.withdraw()
 
     def start_app():
-        root.deiconify()  # Show main app window
+        root.deiconify()
         app = audio_app(root)
 
     show_login(root, start_app)
